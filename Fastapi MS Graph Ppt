@@ -1,5 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
 import os
+print("DEBUG - ENV VARIABLES:")
+print("MSCLIENTID:", os.getenv("MSCLIENTID"))
+print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
+print("MSTENANTID:", os.getenv("MSTENANTID"))
 import requests
 from pptx import Presentation
 from docx import Document
