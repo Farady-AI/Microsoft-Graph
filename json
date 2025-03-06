@@ -1,0 +1,7 @@
+{
+    "file_type": "doc",  // "ppt" for PowerPoint, "excel" for Excel
+    "content": [
+        {"title": "Section 1", "body": "This is the first section."},
+        {"title": "Section 2", "body": "This is the second section."}
+    ]
+}
