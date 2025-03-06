@@ -1,15 +1,13 @@
 services:
-  - name: file-generator-api
+  - name: fastapi-service
     type: web
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: MS_CLIENT_ID
-        sync: false
-      - key: MS_CLIENT_SECRET
-        sync: false
-      - key: MS_TENANT_ID
-        sync: false
-      - key: MS_REDIRECT_URI
-        sync: false
+      - key: MSCLIENTID
+        value: "your-client-id"
+      - key: MSCLIENTSECRET
+        value: "your-client-secret"
+      - key: MSTENANTID
+        value: "your-tenant-id"
