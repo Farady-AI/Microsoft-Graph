@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import os
+from werkzeug.exceptions import HTTPException
+
 
 import requests
 
