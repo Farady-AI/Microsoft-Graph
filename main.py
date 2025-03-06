@@ -1,5 +1,6 @@
-from dotenv import load_dotenv, Request, HTTPException
+from dotenv import load_dotenv, request, HTTPException
 import os
+
 import requests
 print("DEBUG - ENV VARIABLES:")
 import pandas as pandas
