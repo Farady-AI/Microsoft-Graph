@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 
 import requests
-import HTTPException
+
 print("DEBUG - ENV VARIABLES:")
 import pandas as pandas
 print("MSCLIENTID:", os.getenv("MSCLIENTID"))
