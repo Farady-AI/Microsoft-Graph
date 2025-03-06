@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-docx
+python-pptx
+pandas
+requests
+python-dotenv
