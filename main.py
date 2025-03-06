@@ -1,4 +1,4 @@
-from dotenv import load_dotenv, request, HTTPException
+from dotenv import load_dotenv, HTTPException
 import os
 
 import requests
