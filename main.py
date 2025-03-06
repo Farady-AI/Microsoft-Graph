@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
-from FastAPI import HTTPException
+from fastapi import FastAPI
+from FastAPI.Exception import HTTPException
 
 
 import requests
