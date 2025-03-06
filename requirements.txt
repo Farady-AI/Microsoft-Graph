@@ -1,6 +1,7 @@
 fastapi
 FastAPI
 gunicorn
+uvicorn
 python-docx
 python-pptx
 pandas
