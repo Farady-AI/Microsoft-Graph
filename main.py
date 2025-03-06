@@ -1,6 +1,7 @@
 from dotenv import load_dotenv, Request, HTTPException
 import os
-import requestsprint("DEBUG - ENV VARIABLES:")
+import requests
+print("DEBUG - ENV VARIABLES:")
 import pandas as pdprint("MSCLIENTID:", os.getenv("MSCLIENTID"))
 print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
 print("MSTENANTID:", os.getenv("MSTENANTID"))
