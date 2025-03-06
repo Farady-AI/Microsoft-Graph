@@ -1,4 +1,4 @@
-module https://github.com/Farady-AI/Microsoft-Graph
+module github.com/Farady-AI/Microsoft-Graph
 
 go 1.20
 
