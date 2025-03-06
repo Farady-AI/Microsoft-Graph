@@ -1,21 +1,20 @@
-from fastapi import FastAPI, Request, HTTPException
+from dotenv import load_dotenv, Request, HTTPException
 import os
-print("DEBUG - ENV VARIABLES:")
-print("MSCLIENTID:", os.getenv("MSCLIENTID"))
+import requestsprint("DEBUG - ENV VARIABLES:")
+import pandas as pdprint("MSCLIENTID:", os.getenv("MSCLIENTID"))
 print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
 print("MSTENANTID:", os.getenv("MSTENANTID"))
-import requests
 from pptx import Presentation
 from docx import Document
-import pandas as pd
+
 from starlette.responses import FileResponse
 
-app = FastAPI()
+app = load_dotenv()
 
 # Microsoft Graph API credentials
-CLIENT_ID = os.getenv("MS_CLIENT_ID")
-CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET")
-TENANT_ID = os.getenv("MS_TENANT_ID")
+CLIENT_ID = os.getenv("MSCLIENTID")
+CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
+TENANT_ID = os.getenv("MSTENANTID")
 ACCESS_TOKEN = None  # This should be obtained via OAuth flow
 
 
