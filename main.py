@@ -24,7 +24,7 @@ from docx import Document
 
 from starlette.responses import FileResponse
 
-app = load_dotenv()
+
 
 # Microsoft Graph API credentials
 CLIENT_ID = os.getenv("MSCLIENTID")
