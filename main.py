@@ -2,7 +2,8 @@ from dotenv import load_dotenv, Request, HTTPException
 import os
 import requests
 print("DEBUG - ENV VARIABLES:")
-import pandas as pdprint("MSCLIENTID:", os.getenv("MSCLIENTID"))
+import pandas as pandas
+print("MSCLIENTID:", os.getenv("MSCLIENTID"))
 print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
 print("MSTENANTID:", os.getenv("MSTENANTID"))
 from pptx import Presentation
