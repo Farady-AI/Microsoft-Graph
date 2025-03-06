@@ -1,5 +1,6 @@
 from dotenv import load_dotenv, Request, HTTPException
 import os
+import uvicorn
 import requestsprint("DEBUG - ENV VARIABLES:")
 import pandas as pdprint("MSCLIENTID:", os.getenv("MSCLIENTID"))
 print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
