@@ -1,0 +1,70 @@
+import React, { useState } from "react";
+import axios from "axios";
+
+export default function FileGenerator() {
+    const [fileType, setFileType] = useState("ppt");
+    const [content, setContent] = useState([{ title: "", body: "" }]);
+    const [fileUrl, setFileUrl] = useState("");
+
+    const handleInputChange = (index, field, value) => {
+        const updatedContent = [...content];
+        updatedContent[index][field] = value;
+        setContent(updatedContent);
+    };
+
+    const addSection = () => {
+        setContent([...content, { title: "", body: "" }]);
+    };
+
+    const generateFile = async () => {
+        try {
+            const response = await axios.post("https://your-backend-url.com/generate-file", {
+                file_type: fileType,
+                content,
+            });
+            setFileUrl(response.data.file_url);
+        } catch (error) {
+            console.error("Error generating file", error);
+        }
+    };
+
+    return (
+        <div className="p-6 max-w-lg mx-auto bg-white rounded-xl shadow-md space-y-4">
+            <h2 className="text-xl font-bold">Generate Document</h2>
+            <select 
+                className="border p-2 w-full" 
+                value={fileType} 
+                onChange={(e) => setFileType(e.target.value)}
+            >
+                <option value="ppt">PowerPoint</option>
+                <option value="doc">Word Document</option>
+                <option value="excel">Excel Spreadsheet</option>
+            </select>
+            {content.map((section, index) => (
+                <div key={index} className="space-y-2">
+                    <input
+                        type="text"
+                        placeholder="Title"
+                        className="border p-2 w-full"
+                        value={section.title}
+                        onChange={(e) => handleInputChange(index, "title", e.target.value)}
+                    />
+                    <textarea
+                        placeholder="Body"
+                        className="border p-2 w-full"
+                        value={section.body}
+                        onChange={(e) => handleInputChange(index, "body", e.target.value)}
+                    />
+                </div>
+            ))}
+            <button className="bg-blue-500 text-white p-2 rounded" onClick={addSection}>+ Add Section</button>
+            <button className="bg-green-500 text-white p-2 rounded" onClick={generateFile}>Generate File</button>
+            {fileUrl && (
+                <a href={fileUrl} className="text-blue-500" target="_blank" rel="noopener noreferrer">
+                    Download File
+                </a>
+            )}
+        </div>
+    );
+}
+b
