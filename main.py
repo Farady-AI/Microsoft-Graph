@@ -1,7 +1,12 @@
 from dotenv import load_dotenv
 import os
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+from dotenv import load_dotenv
 
+
+load_dotenv()
 app = FastAPI()
 
 @app.put("/items/{item_id}")
@@ -30,6 +35,118 @@ from starlette.responses import FileResponse
 CLIENT_ID = os.getenv("MSCLIENTID")
 CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
 TENANT_ID = os.getenv("MSTENANTID")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
+
+AUTH_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/authorize"
+TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
+GRAPH_ME_URL = "https://graph.microsoft.com/v1.0/me"
+
+# Temporary token storage (Use a real database in production)
+user_tokens = {}
+
+@app.get("/auth/login")
+def login():
+    params = {
+        "client_id": CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": REDIRECT_URI,
+        "scope": "User.Read Mail.Send offline_access",
+        "response_mode": "query"
+    }
+    auth_url = f"{AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    return RedirectResponse(auth_url)
+
+
+@app.get("/auth/callback")
+def auth_callback(code: str):
+    data = {
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+        "scope": "User.Read Mail.Send offline_access"
+    }
+    
+    response = requests.post(TOKEN_URL, data=data)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to get access token")
+    
+    tokens = response.json()
+    
+    # Get user's email from Microsoft Graph API
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    user_info = requests.get(GRAPH_ME_URL, headers=headers).json()
+    
+    user_email = user_info.get("mail") or user_info.get("userPrincipalName")
+    
+    if not user_email:
+        raise HTTPException(status_code=400, detail="Unable to fetch user email")
+    
+    # Store token (Replace with a real database in production)
+    user_tokens[user_email] = tokens
+    
+    return {"message": "Login successful", "user": user_email}
+
+class EmailSchema(BaseModel):
+    to: str
+    subject: str
+    body: str
+
+@app.post("/send-email")
+def send_email(email: EmailSchema, user_email: str):
+    # Get stored token
+    tokens = user_tokens.get(user_email)
+    
+    if not tokens:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    # Refresh token if expired
+    if "expires_in" in tokens and tokens["expires_in"] < 60:
+        tokens = refresh_access_token(tokens["refresh_token"])
+        user_tokens[user_email] = tokens
+
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "Content-Type": "application/json"
+    }
+
+    email_data = {
+        "message": {
+            "subject": email.subject,
+            "body": {"contentType": "Text", "content": email.body},
+            "toRecipients": [{"emailAddress": {"address": email.to}}]
+        }
+    }
+
+    graph_url = "https://graph.microsoft.com/v1.0/me/sendMail"
+    response = requests.post(graph_url, headers=headers, json=email_data)
+
+    if response.status_code == 202:
+        return {"message": "Email sent successfully"}
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.json())
+
+def refresh_access_token(refresh_token):
+    data = {
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "scope": "User.Read Mail.Send offline_access"
+    }
+
+    response = requests.post(TOKEN_URL, data=data)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Failed to refresh access token")
+    
+    return response.json()
+
+
+
+########
 
 
 def send_email(access_token, recipient, subject, body):
