@@ -7,3 +7,4 @@ python-pptx
 pandas
 requests
 python-dotenv
+openai
