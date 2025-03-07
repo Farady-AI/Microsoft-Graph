@@ -60,14 +60,14 @@ def send_email(access_token, recipient, subject, body):
     else:
         return {"error": response.json()}
 
-@app.post("/send-email")
+ @app.post("/send-email")
 async def send_email_endpoint(request: Request):
-    data = await request.json()  # Fix: Make request.json() async for FastAPI
+    data = await request.json()
     
     email_address = data.get("to")
     subject = data.get("subject")
     body = data.get("body")
-    access_token = "YOUR_ACCESS_TOKEN_HERE"  # Replace with a valid OAuth token
+    access_token = "access_token = get_access_token()  
 
     if not email_address or not subject or not body:
         raise HTTPException(status_code=400, detail="Missing required fields")
@@ -89,10 +89,16 @@ def get_access_token():
         "grant_type": "client_credentials",
         "scope": "https://graph.microsoft.com/.default"
     }
+    
     response = requests.post(url, data=data)
+    
     if response.status_code == 200:
-        return response.json().get("access_token")
-    raise HTTPException(status_code=400, detail="Failed to obtain access token")
+        token = response.json().get("access_token")
+        if not token or "." not in token:  
+            raise HTTPException(status_code=400, detail="Invalid token received from Microsoft")
+        return token
+    
+    raise HTTPException(status_code=400, detail=f"Failed to obtain access token: {response.text}")
 
 
 def create_ppt(content: list, file_name: str = "generated_presentation.pptx"):
