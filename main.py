@@ -32,7 +32,55 @@ CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
 TENANT_ID = os.getenv("MSTENANTID")
 ACCESS_TOKEN = None  # This should be obtained via OAuth flow
 
+def send_email(access_token, recipient, subject, body):
+    url = "https://graph.microsoft.com/v1.0/me/sendMail"
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
 
+    email_data = {
+        "message": {
+            "subject": subject,
+            "body": {
+                "contentType": "Text",
+                "content": body
+            },
+            "toRecipients": [
+                {"emailAddress": {"address": recipient}}
+            ]
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=email_data)
+
+    if response.status_code == 202:
+        return {"status": "Email sent successfully"}
+    else:
+        return {"error": response.json()}
+
+@app.post("/send-email")
+async def send_email_endpoint(request: Request):
+    data = await request.json()  # Fix: Make request.json() async for FastAPI
+    
+    email_address = data.get("to")
+    subject = data.get("subject")
+    body = data.get("body")
+    access_token = "YOUR_ACCESS_TOKEN_HERE"  # Replace with a valid OAuth token
+
+    if not email_address or not subject or not body:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    result = send_email(access_token, email_address, subject, body)
+    
+    return result
+
+def read_item(item_id: int):
+    if item_id < 0:
+        raise HTTPException(status_code=400, detail="Item ID must be positive")
+    return {"item_id": item_id}
+    
 def get_access_token():
     url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
     data = {
