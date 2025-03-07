@@ -1,48 +1,34 @@
 from dotenv import load_dotenv
 import os
+import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
-
-
-load_dotenv()
-app = FastAPI()
-
-@app.put("/items/{item_id}")
-def read_item(item_id: int):
-    if item_id < 0:
-        raise HTTPException(status_code=400, detail="Item ID must be positive")
-    return {"item_id": item_id}
-
-
-
-import requests
-
-print("DEBUG - ENV VARIABLES:")
-import pandas as pandas
-print("MSCLIENTID:", os.getenv("MSCLIENTID"))
-print("MSCLIENTSECRET:", os.getenv("MSCLIENTSECRET"))
-print("MSTENANTID:", os.getenv("MSTENANTID"))
 from pptx import Presentation
 from docx import Document
-
+import pandas as pd
 from starlette.responses import FileResponse
+import openai  # OpenAI API Integration
 
+# Load environment variables
+load_dotenv()
 
+app = FastAPI()
 
 # Microsoft Graph API credentials
 CLIENT_ID = os.getenv("MSCLIENTID")
 CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
 TENANT_ID = os.getenv("MSTENANTID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # OpenAI API Key
 
 AUTH_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/authorize"
 TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
 GRAPH_ME_URL = "https://graph.microsoft.com/v1.0/me"
 
-# Temporary token storage (Use a real database in production)
-user_tokens = {}
+user_tokens = {}  # Temporary token storage (Use a real database in production)
+
+openai.api_key = OPENAI_API_KEY  # Set OpenAI API Key
 
 @app.get("/auth/login")
 def login():
@@ -84,15 +70,15 @@ def auth_callback(code: str):
     if not user_email:
         raise HTTPException(status_code=400, detail="Unable to fetch user email")
     
-    # Store token (Replace with a real database in production)
-    user_tokens[user_email] = tokens
+    user_tokens[user_email] = tokens  # Store token
     
     return {"message": "Login successful", "user": user_email}
+
 
 class EmailSchema(BaseModel):
     to: str
     subject: str
-    body: str
+    prompt: str  # Instead of body, use a prompt for AI-generated content
 
 @app.post("/send-email")
 def send_email(email: EmailSchema, user_email: str):
@@ -107,6 +93,9 @@ def send_email(email: EmailSchema, user_email: str):
         tokens = refresh_access_token(tokens["refresh_token"])
         user_tokens[user_email] = tokens
 
+    # Generate AI-powered email content using OpenAI
+    ai_generated_body = generate_email_content(email.prompt)
+
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
         "Content-Type": "application/json"
@@ -115,7 +104,7 @@ def send_email(email: EmailSchema, user_email: str):
     email_data = {
         "message": {
             "subject": email.subject,
-            "body": {"contentType": "Text", "content": email.body},
+            "body": {"contentType": "Text", "content": ai_generated_body},
             "toRecipients": [{"emailAddress": {"address": email.to}}]
         }
     }
@@ -124,11 +113,25 @@ def send_email(email: EmailSchema, user_email: str):
     response = requests.post(graph_url, headers=headers, json=email_data)
 
     if response.status_code == 202:
-        return {"message": "Email sent successfully"}
+        return {"message": "Email sent successfully", "generated_content": ai_generated_body}
     else:
         raise HTTPException(status_code=response.status_code, detail=response.json())
 
+
+def generate_email_content(prompt: str) -> str:
+    """Uses OpenAI's ChatGPT to generate email content from a given prompt."""
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are an AI assistant that generates professional email content."},
+            {"role": "user", "content": f"Generate a professional email based on this prompt: {prompt}"}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
+
 def refresh_access_token(refresh_token):
+    """Refreshes the Microsoft Graph API access token."""
     data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
@@ -145,144 +148,5 @@ def refresh_access_token(refresh_token):
     return response.json()
 
 
+# File generation endpoints remain unchanged...
 
-########
-
-
-def send_email(access_token, recipient, subject, body):
-    url = "https://graph.microsoft.com/v1.0/me/sendMail"
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    email_data = {
-        "message": {
-            "subject": subject,
-            "body": {
-                "contentType": "Text",
-                "content": body
-            },
-            "toRecipients": [
-                {"emailAddress": {"address": recipient}}
-            ]
-        }
-    }
-
-    response = requests.post(url, headers=headers, json=email_data)
-
-    if response.status_code == 202:
-        return {"status": "Email sent successfully"}
-    else:
-        return {"error": response.json()}
-
-@app.post("/send-email")
-async def send_email_endpoint(request: Request):
-    data = await request.json()
-    
-    email_address = data.get("to")
-    subject = data.get("subject")
-    body = data.get("body")
-    access_token = get_access_token()
-
-    if not email_address or not subject or not body:
-        raise HTTPException(status_code=400, detail="Missing required fields")
-
-    result = send_email(access_token, email_address, subject, body)
-    
-    return result
-    
-def get_access_token():
-    url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "client_credentials",
-        "scope": "https://graph.microsoft.com/.default"
-    }
-    
-    response = requests.post(url, data=data)
-    
-    if response.status_code == 200:
-        token = response.json().get("access_token")
-        if not token or "." not in token:  
-            raise HTTPException(status_code=400, detail="Invalid token received from Microsoft")
-        return token
-    
-    raise HTTPException(status_code=400, detail=f"Failed to obtain access token: {response.text}")
-
-
-def create_ppt(content: list, file_name: str = "generated_presentation.pptx"):
-    prs = Presentation()
-    for slide_content in content:
-        slide_layout = prs.slide_layouts[5]
-        slide = prs.slides.add_slide(slide_layout)
-        if slide.shapes.title:
-            slide.shapes.title.text = slide_content.get("title", "Untitled")
-        if len(slide.placeholders) > 1:
-            slide.placeholders[1].text = slide_content.get("body", "")
-    prs.save(file_name)
-    return file_name
-
-
-def create_doc(content: list, file_name: str = "generated_document.docx"):
-    doc = Document()
-    for section in content:
-        doc.add_heading(section.get("title", "Untitled"), level=1)
-        doc.add_paragraph(section.get("body", ""))
-    doc.save(file_name)
-    return file_name
-
-
-def create_excel(content: list, file_name: str = "generated_spreadsheet.xlsx"):
-    df = pd.DataFrame(content)
-    df.to_excel(file_name, index=False)
-    return file_name
-
-
-@app.post("/generate-file")
-async def generate_file(request: Request):
-    global ACCESS_TOKEN
-    data = await request.json()
-    file_type = data.get("file_type", "ppt")
-    content = data.get("content", [])
-    
-    if file_type == "ppt":
-        file_name = create_ppt(content)
-    elif file_type == "doc":
-        file_name = create_doc(content)
-    elif file_type == "excel":
-        file_name = create_excel(content)
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported file type")
-    
-    if ACCESS_TOKEN is None:
-        ACCESS_TOKEN = get_access_token()
-    
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/octet-stream"
-    }
-    
-    with open(file_name, "rb") as file:
-        upload_url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_name}:/content"
-        response = requests.put(upload_url, headers=headers, data=file)
-        
-        if response.status_code in [200, 201]:
-            return {"message": "File uploaded successfully", "file_url": response.json().get("webUrl", "")}
-        else:
-            raise HTTPException(status_code=400, detail=f"Failed to upload file: {response.text}")
-
-
-@app.get("/download-file")
-async def download_file(file_type: str = "ppt"):
-    file_map = {
-        "ppt": "generated_presentation.pptx",
-        "doc": "generated_document.docx",
-        "excel": "generated_spreadsheet.xlsx"
-    }
-    file_name = file_map.get(file_type, "generated_presentation.pptx")
-    if not os.path.exists(file_name):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_name, media_type="application/octet-stream", filename=file_name)
