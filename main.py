@@ -30,7 +30,7 @@ from starlette.responses import FileResponse
 CLIENT_ID = os.getenv("MSCLIENTID")
 CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
 TENANT_ID = os.getenv("MSTENANTID")
-ACCESS_TOKEN = None  # This should be obtained via OAuth flow
+
 
 def send_email(access_token, recipient, subject, body):
     url = "https://graph.microsoft.com/v1.0/me/sendMail"
