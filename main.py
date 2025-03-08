@@ -25,12 +25,13 @@ def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
     
     auth_url = msal_app.get_authorization_request_url(
-        SCOPE, 
-        redirect_uri=REDIRECT_URI, 
+        [],  # Empty scope list for login
+        redirect_uri=REDIRECT_URI,
         extra_scopes_to_consent=[]
     )
     
     return {"auth_url": auth_url}
+
 
 @app.get("/auth/callback")
 def auth_callback(code: str):
