@@ -13,7 +13,8 @@ TENANT_ID = os.getenv("MSTENANTID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")  # Must match Azure settings
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPE = ["User.Read", "Mail.Send"]  # Removed 'offline_access' to avoid ValueError
+SCOPE = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"]
+  # Removed 'offline_access' to avoid ValueError
 
 app = FastAPI()
 
