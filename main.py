@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
+import logging
 import os
 import msal
 import requests
@@ -13,7 +13,7 @@ TENANT_ID = os.getenv("MSTENANTID")
 REDIRECT_URI = os.getenv("REDIRECT_URI")  # Must match Azure settings
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPE = ["User.Read", "Mail.Send", "offline_access"]
+SCOPE = ["User.Read", "Mail.Send"]  # Removed 'offline_access' to avoid ValueError
 
 app = FastAPI()
 
@@ -23,7 +23,7 @@ user_tokens = {}  # Dictionary to store user tokens (Use a database in productio
 def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
     auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
-    return RedirectResponse(auth_url)
+    return {"auth_url": auth_url}
 
 @app.get("/auth/callback")
 def auth_callback(code: str):
