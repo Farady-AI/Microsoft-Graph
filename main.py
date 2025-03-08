@@ -1,76 +1,56 @@
-from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 import os
+import msal
 import requests
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse, FileResponse
-from pydantic import BaseModel
 from datetime import datetime, timedelta
-from pptx import Presentation
-from docx import Document
-import pandas as pd
-import openai  # OpenAI API Integration
+from pydantic import BaseModel
 
 # Load environment variables
-load_dotenv()
-
-app = FastAPI()
-
-# Microsoft Graph API credentials
 CLIENT_ID = os.getenv("MSCLIENTID")
 CLIENT_SECRET = os.getenv("MSCLIENTSECRET")
 TENANT_ID = os.getenv("MSTENANTID")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # OpenAI API Key
+REDIRECT_URI = os.getenv("REDIRECT_URI")  # Must match Azure settings
 
-AUTH_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/authorize"
-TOKEN_URL = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-GRAPH_ME_URL = "https://graph.microsoft.com/v1.0/me"
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+SCOPE = ["User.Read", "Mail.Send", "offline_access"]
 
-user_tokens = {}  # Temporary token storage (Use a real database in production)
-openai.api_key = OPENAI_API_KEY  # Set OpenAI API Key
+app = FastAPI()
+
+user_tokens = {}  # Dictionary to store user tokens (Use a database in production)
 
 @app.get("/auth/login")
 def login():
-    params = {
-        "client_id": CLIENT_ID,
-        "response_type": "code",
-        "redirect_uri": REDIRECT_URI,
-        "scope": "User.Read Mail.Send offline_access",
-        "response_mode": "query"
-    }
-    auth_url = f"{AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
+    auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
     return RedirectResponse(auth_url)
 
 @app.get("/auth/callback")
 def auth_callback(code: str):
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": REDIRECT_URI,
-        "scope": "User.Read Mail.Send offline_access"
-    }
+    msal_app = msal.ConfidentialClientApplication(CLIENT_ID, CLIENT_SECRET, authority=AUTHORITY)
     
-    response = requests.post(TOKEN_URL, data=data)
-    
-    if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to get access token")
-    
-    tokens = response.json()
-    expiration_time = datetime.utcnow() + timedelta(seconds=tokens["expires_in"])
-    tokens["expires_at"] = expiration_time.timestamp()
-    
-    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    user_info = requests.get(GRAPH_ME_URL, headers=headers).json()
+    # Exchange the auth code for a token
+    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+
+    if "access_token" not in result:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {result.get('error_description')}")
+
+    expiration_time = datetime.utcnow() + timedelta(seconds=result["expires_in"])
+    result["expires_at"] = expiration_time.timestamp()
+
+    # Get user's email
+    headers = {"Authorization": f"Bearer {result['access_token']}"}
+    user_info = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers).json()
     
     user_email = user_info.get("mail") or user_info.get("userPrincipalName")
     
     if not user_email:
         raise HTTPException(status_code=400, detail="Unable to fetch user email")
-    
-    user_tokens[user_email] = tokens  # Store token
-    
+
+    # Store the tokens per user
+    user_tokens[user_email] = result
+    print(f"Stored Token for {user_email}: {result}")  # Debugging
+
     return {"message": "Login successful", "user": user_email}
 
 class EmailSchema(BaseModel):
@@ -82,17 +62,29 @@ class EmailSchema(BaseModel):
 def send_email(email: EmailSchema, user_email: str):
     tokens = user_tokens.get(user_email)
     
-    if not tokens or datetime.utcnow().timestamp() > tokens["expires_at"]:
-        tokens = refresh_access_token(tokens["refresh_token"])
+    if not tokens:
+        raise HTTPException(status_code=401, detail=f"User {user_email} not authenticated. Please login first.")
+
+    # Refresh token if expired
+    if datetime.utcnow().timestamp() > tokens["expires_at"]:
+        msal_app = msal.ConfidentialClientApplication(CLIENT_ID, CLIENT_SECRET, authority=AUTHORITY)
+        refresh_result = msal_app.acquire_token_by_refresh_token(tokens["refresh_token"], scopes=SCOPE)
+
+        if "access_token" not in refresh_result:
+            raise HTTPException(status_code=401, detail="Token expired, and refresh failed. Please re-authenticate.")
+        
+        tokens = refresh_result
+        tokens["expires_at"] = datetime.utcnow().timestamp() + tokens["expires_in"]
         user_tokens[user_email] = tokens
-    
+
+    # Generate email content using OpenAI
     ai_generated_body = generate_email_content(email.prompt)
-    
+
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
         "Content-Type": "application/json"
     }
-    
+
     email_data = {
         "message": {
             "subject": email.subject,
@@ -100,64 +92,11 @@ def send_email(email: EmailSchema, user_email: str):
             "toRecipients": [{"emailAddress": {"address": email.to}}]
         }
     }
-    
+
     graph_url = "https://graph.microsoft.com/v1.0/me/sendMail"
     response = requests.post(graph_url, headers=headers, json=email_data)
-    
+
     if response.status_code == 202:
         return {"message": "Email sent successfully", "generated_content": ai_generated_body}
     else:
         raise HTTPException(status_code=response.status_code, detail=response.json())
-
-
-def generate_email_content(prompt: str) -> str:
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are an AI assistant that generates professional email content."},
-            {"role": "user", "content": f"Generate a professional email based on this prompt: {prompt}"}
-        ]
-    )
-    return response["choices"][0]["message"]["content"].strip()
-
-
-def refresh_access_token(refresh_token):
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token,
-        "scope": "User.Read Mail.Send offline_access"
-    }
-    
-    response = requests.post(TOKEN_URL, data=data)
-    
-    if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to refresh access token")
-    
-    tokens = response.json()
-    tokens["expires_at"] = datetime.utcnow().timestamp() + tokens["expires_in"]
-    return tokens
-
-# File Generation Endpoints
-@app.get("/generate-ppt")
-def generate_ppt():
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    title = slide.shapes.title
-    title.text = "Generated PowerPoint Slide"
-    prs.save("generated_ppt.pptx")
-    return FileResponse("generated_ppt.pptx")
-
-@app.get("/generate-doc")
-def generate_doc():
-    doc = Document()
-    doc.add_paragraph("Generated Word Document")
-    doc.save("generated_doc.docx")
-    return FileResponse("generated_doc.docx")
-
-@app.get("/generate-excel")
-def generate_excel():
-    df = pd.DataFrame({"Column1": ["Data1", "Data2"], "Column2": ["MoreData1", "MoreData2"]})
-    df.to_excel("generated_excel.xlsx", index=False)
-    return FileResponse("generated_excel.xlsx")
