@@ -23,7 +23,13 @@ user_tokens = {}  # Dictionary to store user tokens (Use a database in productio
 @app.get("/auth/login")
 def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
-    auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
+    
+    auth_url = msal_app.get_authorization_request_url(
+        SCOPE, 
+        redirect_uri=REDIRECT_URI, 
+        extra_scopes_to_consent=[]
+    )
+    
     return {"auth_url": auth_url}
 
 @app.get("/auth/callback")
