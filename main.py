@@ -37,8 +37,13 @@ def login():
 def auth_callback(code: str):
     msal_app = msal.ConfidentialClientApplication(CLIENT_ID, CLIENT_SECRET, authority=AUTHORITY)
     
-    # Exchange the auth code for a token
-    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
+    # Exchange the auth code for a token **with Graph API scopes**
+    result = msal_app.acquire_token_by_authorization_code(
+        code, 
+        scopes=["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"],  # Use Graph API scopes here
+        redirect_uri=REDIRECT_URI
+    )
+
 
     if "access_token" not in result:
         raise HTTPException(status_code=400, detail=f"Authentication failed: {result.get('error_description')}")
