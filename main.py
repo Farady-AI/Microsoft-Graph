@@ -24,12 +24,16 @@ def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
 
     auth_url = msal_app.get_authorization_request_url(
-        SCOPE,  # Force Graph API scopes
+        SCOPE,
         redirect_uri=REDIRECT_URI,
-        with_account=None  # Prevent MSAL from appending extra scopes
+        with_account=None
     )
 
-    return {"auth_url": auth_url}
+    # Remove unwanted scopes from the generated URL
+    filtered_url = auth_url.replace("offline_access+openid+profile", "")
+
+    return {"auth_url": filtered_url}
+
 
 @app.get("/auth/callback")
 def auth_callback(code: str):
