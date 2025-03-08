@@ -23,17 +23,15 @@ user_tokens = {}  # Dictionary to store user tokens (Use a database in productio
 @app.get("/auth/login")
 def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
-    
+
     auth_url = msal_app.get_authorization_request_url(
-        [],  # Empty scope list for login
+        ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"],  # Force Graph API scopes
         redirect_uri=REDIRECT_URI,
         extra_scopes_to_consent=[]
     )
-    
+
     return {"auth_url": auth_url}
 
-
-@app.get("/auth/callback")
 def auth_callback(code: str):
     msal_app = msal.ConfidentialClientApplication(CLIENT_ID, CLIENT_SECRET, authority=AUTHORITY)
     
