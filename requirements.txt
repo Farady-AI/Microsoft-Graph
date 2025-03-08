@@ -8,3 +8,4 @@ pandas
 requests
 python-dotenv
 openai
+msal
