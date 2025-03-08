@@ -14,7 +14,6 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")  # Must match Azure settings
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 SCOPE = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"]
-  # Removed 'offline_access' to avoid ValueError
 
 app = FastAPI()
 
@@ -25,23 +24,23 @@ def login():
     msal_app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
 
     auth_url = msal_app.get_authorization_request_url(
-        ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"],  # Force Graph API scopes
+        SCOPE,  # Force Graph API scopes
         redirect_uri=REDIRECT_URI,
-        extra_scopes_to_consent=[]
+        with_account=None  # Prevent MSAL from appending extra scopes
     )
 
     return {"auth_url": auth_url}
 
+@app.get("/auth/callback")
 def auth_callback(code: str):
     msal_app = msal.ConfidentialClientApplication(CLIENT_ID, CLIENT_SECRET, authority=AUTHORITY)
     
     # Exchange the auth code for a token **with Graph API scopes**
     result = msal_app.acquire_token_by_authorization_code(
         code, 
-        scopes=["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"],  # Use Graph API scopes here
+        scopes=SCOPE,  # Use Graph API scopes here
         redirect_uri=REDIRECT_URI
     )
-
 
     if "access_token" not in result:
         raise HTTPException(status_code=400, detail=f"Authentication failed: {result.get('error_description')}")
