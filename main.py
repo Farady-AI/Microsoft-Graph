@@ -117,4 +117,4 @@ def generate_text(prompt: str):
     return {"generated_text": response["choices"][0]["message"]["content"].strip()}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    gunicorn -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:8000 main:app
