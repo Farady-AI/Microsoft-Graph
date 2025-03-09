@@ -1,6 +1,6 @@
 # FastAPI + OpenAI + Microsoft Graph API
 
-This is a FastAPI application that integrates **OpenAI** for text generation and **Microsoft Graph API** for authentication and email functionality.
+This is a FastAPI application that integrates **OpenAI** for text generation and **Microsoft Graph API** for authentication and email/pptx/docx/pandas functionality.
 
 ---
 
