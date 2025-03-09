@@ -14,6 +14,13 @@ import gunicorn
 import openai
 from dotenv import load_dotenv
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+
+# Define request model for text generation
+class TextRequest(BaseModel):
+    prompt: str
+
 # Load environment variables
 load_dotenv()
 CLIENT_ID = os.getenv("MSCLIENTID")
@@ -26,6 +33,7 @@ AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 SCOPE = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/User.Read"]
 
 app = FastAPI()
+
 
 user_tokens = {}  # Dictionary to store user tokens (Use a database in production)
 
