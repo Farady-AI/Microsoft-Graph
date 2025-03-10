@@ -13,13 +13,18 @@ import uvicorn
 import gunicorn
 import openai
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+from pptx.util import Inches
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 
-# Define request model for text generation
-class TextRequest(BaseModel):
-    prompt: str
+# Define simplified request model
+class DocumentRequest(BaseModel):
+    document_type: str
+    title: str
+    content: str
+    output_format: str = "docx"  # "docx" or "pptx"
 
 # Load environment variables
 load_dotenv()
@@ -34,6 +39,14 @@ SCOPE = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/U
 
 app = FastAPI()
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins for testing
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 user_tokens = {}  # Dictionary to store user tokens (Use a database in production)
 
@@ -96,26 +109,116 @@ def generate_excel():
     df.to_excel("generated_excel.xlsx", index=False)
     return FileResponse("generated_excel.xlsx")
 
-class TextRequest(BaseModel):
-    prompt: str
-
 @app.post("/generate-text")
-def generate_text(request: TextRequest):
-    """Uses OpenAI's ChatGPT to generate text from a given prompt."""
+async def generate_text(request: TextRequest):
+    """
+    Enhanced endpoint that handles both free-form text generation and structured document content.
+    When structured_output is True, expects a DocumentRequest object with specific formatting instructions.
+    """
     try:
-        logging.info(f"Received request: {request.prompt}")
+        logging.info(f"Received request: {request}")
+        
+        # If this is a structured document request, add specific system instructions
+        if request.structured_output and request.document_request:
+            system_prompt = f"""You are an AI assistant specialized in generating educational content for K-12 PE, Health, and Driver's Ed.
+            You are generating content for a {request.document_request.document_type}.
+            Format the output according to the provided structure and maintain professional educational standards."""
+            
+            # Convert the document request to a format suitable for GPT
+            formatted_prompt = f"""
+            Title: {request.document_request.title}
+            Document Type: {request.document_request.document_type}
+            
+            Please provide content for each section while maintaining educational best practices and standards.
+            
+            Original prompt: {request.prompt}
+            """
+        else:
+            system_prompt = "You are an AI assistant that generates text based on prompts."
+            formatted_prompt = request.prompt
+
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an AI assistant that generates text based on prompts."},
-                {"role": "user", "content": request.prompt}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": formatted_prompt}
             ]
         )
-        logging.info("OpenAI response successful")
-        return {"generated_text": response["choices"][0]["message"]["content"].strip()}
+        
+        generated_content = response["choices"][0]["message"]["content"].strip()
+        
+        # If this is a structured request, process the content for document generation
+        if request.structured_output and request.document_request:
+            # Process the generated content based on document type
+            if request.document_request.output_format == "docx":
+                doc = Document()
+                doc.add_heading(request.document_request.title, 0)
+                
+                # Add content sections
+                for section in request.document_request.sections:
+                    doc.add_heading(section.section_type, level=1)
+                    doc.add_paragraph(section.content)
+                    
+                # Save with metadata
+                filename = f"{request.document_request.document_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+                doc.save(filename)
+                
+                return FileResponse(filename)
+            
+            # Add similar handling for pptx and xlsx formats
+            
+        logging.info("Content generation successful")
+        return {"generated_text": generated_content}
+        
     except Exception as e:
         logging.error(f"Error in generate-text: {str(e)}")
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/test")
+async def test_endpoint():
+    """Simple endpoint to verify API is accessible"""
+    return {"status": "ok", "message": "API is running and accessible"}
+
+@app.post("/generate-document")
+async def generate_document(request: DocumentRequest):
+    """
+    Simplified document generation endpoint.
+    Accepts content and generates a document in the requested format.
+    """
+    try:
+        logging.info(f"Generating {request.output_format} document: {request.title}")
+        
+        if request.output_format == "docx":
+            doc = Document()
+            doc.add_heading(request.title, 0)
+            doc.add_paragraph(request.content)
+            
+            filename = f"generated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+            doc.save(filename)
+            return FileResponse(filename)
+            
+        elif request.output_format == "pptx":
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+            title = slide.shapes.title
+            title.text = request.title
+            
+            # Add content to the slide
+            left = top = width = height = Inches(1)
+            txBox = slide.shapes.add_textbox(left, top, width, height)
+            tf = txBox.text_frame
+            tf.text = request.content
+            
+            filename = f"generated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
+            prs.save(filename)
+            return FileResponse(filename)
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {request.output_format}")
+            
+    except Exception as e:
+        logging.error(f"Error generating document: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
