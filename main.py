@@ -19,7 +19,10 @@ from pptx.util import Inches
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 
-# Define simplified request model
+# Define request models
+class TextRequest(BaseModel):
+    prompt: str
+
 class DocumentRequest(BaseModel):
     document_type: str
     title: str
