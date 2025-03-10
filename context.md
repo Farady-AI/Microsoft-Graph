@@ -73,4 +73,24 @@ $body = @{
 } | ConvertTo-Json
 
 Invoke-WebRequest -Method POST -Uri "https://microsoft-graph-2.onrender.com/generate-document" -Body $body -ContentType "application/json"
-``` 
+```
+
+## Steps to Run Locally
+1. Open a new terminal window
+2. Navigate to your project directory:
+```bash
+cd /Users/joemartucci/Projects:REPOS/Microsoft-Graph
+```
+
+3. Activate the virtual environment:
+```bash
+source venv/bin/activate
+```
+
+4. Start the FastAPI server:
+```bash
+python3 -m uvicorn main:app --reload
+```
+
+Once you run these commands, you should see the server start up. Then you can open your browser and navigate to:
+http://127.0.0.1:8000/docs

@@ -9,3 +9,4 @@ requests
 python-dotenv
 openai
 msal
+itsdangerous>=2.2.0
